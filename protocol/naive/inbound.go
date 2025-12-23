@@ -6,6 +6,8 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"sync"
+	"sync/atomic"
 
 	"github.com/sagernet/sing-box/adapter"
 	"github.com/sagernet/sing-box/adapter/inbound"
@@ -44,7 +46,9 @@ type Inbound struct {
 	listener         *listener.Listener
 	network          []string
 	networkIsDefault bool
-	authenticator    *auth.Authenticator
+	usersMu          sync.Mutex
+	users            []auth.User
+	authenticator    atomic.Pointer[auth.Authenticator]
 	tlsConfig        tls.ServerConfig
 	httpServer       *http.Server
 	h3Server         io.Closer
@@ -56,6 +60,7 @@ func NewInbound(ctx context.Context, router adapter.Router, logger log.ContextLo
 		ctx:     ctx,
 		router:  uot.NewRouter(router, logger),
 		logger:  logger,
+		options: options,
 		listener: listener.New(listener.Options{
 			Context: ctx,
 			Logger:  logger,
@@ -63,7 +68,7 @@ func NewInbound(ctx context.Context, router adapter.Router, logger log.ContextLo
 		}),
 		networkIsDefault: options.Network == "",
 		network:          options.Network.Build(),
-		authenticator:    auth.NewAuthenticator(options.Users),
+		users:            append([]auth.User(nil), options.Users...),
 	}
 	if common.Contains(inbound.network, N.NetworkUDP) {
 		if options.TLS == nil || !options.TLS.Enabled {
@@ -73,6 +78,7 @@ func NewInbound(ctx context.Context, router adapter.Router, logger log.ContextLo
 	if len(options.Users) == 0 {
 		return nil, E.New("missing users")
 	}
+	inbound.authenticator.Store(auth.NewAuthenticator(inbound.users))
 	if options.TLS != nil {
 		tlsConfig, err := tls.NewServer(ctx, logger, common.PtrValueOrDefault(options.TLS))
 		if err != nil {
@@ -157,7 +163,8 @@ func (n *Inbound) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	}
 	userName, password, authOk := sHttp.ParseBasicAuth(request.Header.Get("Proxy-Authorization"))
 	if authOk {
-		authOk = n.authenticator.Verify(userName, password)
+		authenticator := n.authenticator.Load()
+		authOk = authenticator != nil && authenticator.Verify(userName, password)
 	}
 	if !authOk {
 		rejectHTTP(writer, http.StatusProxyAuthRequired)
@@ -229,6 +236,64 @@ func (n *Inbound) newConnection(ctx context.Context, waitForClose bool, conn net
 
 func (n *Inbound) badRequest(ctx context.Context, request *http.Request, err error) {
 	n.logger.ErrorContext(ctx, E.Cause(err, "process connection from ", request.RemoteAddr))
+}
+
+func (n *Inbound) AddUsers(users []auth.User) error {
+	if len(users) == 0 {
+		return nil
+	}
+
+	n.usersMu.Lock()
+	defer n.usersMu.Unlock()
+
+	n.users = append(n.users, users...)
+
+	userSet := make(map[string]map[string]struct{}, len(n.users))
+	merged := make([]auth.User, 0, len(n.users))
+	for _, user := range n.users {
+		passwordSet, ok := userSet[user.Username]
+		if !ok {
+			passwordSet = make(map[string]struct{})
+			userSet[user.Username] = passwordSet
+		}
+		if _, exists := passwordSet[user.Password]; exists {
+			continue
+		}
+		passwordSet[user.Password] = struct{}{}
+		merged = append(merged, user)
+	}
+
+	n.users = merged
+	n.options.Users = merged
+	n.authenticator.Store(auth.NewAuthenticator(merged))
+	return nil
+}
+
+func (n *Inbound) DelUsers(usernames []string) error {
+	if len(usernames) == 0 {
+		return nil
+	}
+
+	deleteSet := make(map[string]struct{}, len(usernames))
+	for _, username := range usernames {
+		deleteSet[username] = struct{}{}
+	}
+
+	n.usersMu.Lock()
+	defer n.usersMu.Unlock()
+
+	kept := make([]auth.User, 0, len(n.users))
+	for _, user := range n.users {
+		if _, shouldDelete := deleteSet[user.Username]; shouldDelete {
+			continue
+		}
+		kept = append(kept, user)
+	}
+
+	n.users = kept
+	n.options.Users = kept
+	n.authenticator.Store(auth.NewAuthenticator(kept))
+	return nil
 }
 
 func rejectHTTP(writer http.ResponseWriter, statusCode int) {
