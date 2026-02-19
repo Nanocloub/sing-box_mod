@@ -4,16 +4,17 @@ icon: material/new-box
 
 !!! quote "Changes in sing-box 1.13.0"
 
-    :material-plus: [kernel_tx](#kernel_tx)
-    :material-plus: [kernel_rx](#kernel_rx)
-    :material-plus: [curve_preferences](#curve_preferences)
-    :material-plus: [certificate_public_key_sha256](#certificate_public_key_sha256)
-    :material-plus: [client_certificate](#client_certificate)
-    :material-plus: [client_certificate_path](#client_certificate_path)
-    :material-plus: [client_key](#client_key)
-    :material-plus: [client_key_path](#client_key_path)
-    :material-plus: [client_authentication](#client_authentication)
-    :material-plus: [client_certificate_public_key_sha256](#client_certificate_public_key_sha256)
+    :material-plus: [kernel_tx](#kernel_tx)  
+    :material-plus: [kernel_rx](#kernel_rx)  
+    :material-plus: [curve_preferences](#curve_preferences)  
+    :material-plus: [certificate_public_key_sha256](#certificate_public_key_sha256)  
+    :material-plus: [client_certificate](#client_certificate)  
+    :material-plus: [client_certificate_path](#client_certificate_path)  
+    :material-plus: [client_key](#client_key)  
+    :material-plus: [client_key_path](#client_key_path)  
+    :material-plus: [client_authentication](#client_authentication)  
+    :material-plus: [client_certificate_public_key_sha256](#client_certificate_public_key_sha256)  
+    :material-plus: [ech.query_server_name](#query_server_name)
 
 !!! quote "Changes in sing-box 1.12.0"
 
@@ -25,7 +26,7 @@ icon: material/new-box
 
 !!! quote "Changes in sing-box 1.10.0"
 
-    :material-alert-decagram: [utls](#utls)  
+    :material-alert-decagram: [utls](#utls)
 
 ### Inbound
 
@@ -118,6 +119,7 @@ icon: material/new-box
     "enabled": false,
     "config": [],
     "config_path": "",
+    "query_server_name": "",
 
     // Deprecated
     "pq_signature_schemes_enabled": false,
@@ -416,9 +418,18 @@ Enable kernel TLS receive support.
 
 ==Client only==
 
-!!! failure ""
-    
-    There is no evidence that GFW detects and blocks servers based on TLS client fingerprinting, and using an imperfect emulation that has not been security reviewed could pose security risks.
+!!! failure "Not Recommended"
+
+    uTLS has had repeated fingerprinting vulnerabilities discovered by researchers.
+
+    uTLS is a Go library that attempts to imitate browser TLS fingerprints by copying
+    ClientHello structure. However, browsers use completely different TLS stacks
+    (Chrome uses BoringSSL, Firefox uses NSS) with distinct implementation behaviors
+    that cannot be replicated by simply copying the handshake format, making detection possible.
+    Additionally, the library lacks active maintenance and has poor code quality,
+    making it unsuitable for censorship circumvention.
+
+    For TLS fingerprint resistance, use [NaiveProxy](/configuration/inbound/naive/) instead.
 
 uTLS is a fork of "crypto/tls", which provides ClientHello fingerprinting resistance.
 
@@ -504,6 +515,16 @@ If empty, load from DNS will be attempted.
 The path to ECH configuration, in PEM format.
 
 If empty, load from DNS will be attempted.
+
+#### query_server_name
+
+!!! question "Since sing-box 1.13.0"
+
+==Client only==
+
+Overrides the domain name used for ECH HTTPS record queries.
+
+If empty, `server_name` is used for queries.
 
 #### fragment
 

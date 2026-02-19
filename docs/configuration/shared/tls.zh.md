@@ -4,28 +4,29 @@ icon: material/new-box
 
 !!! quote "sing-box 1.13.0 中的更改"
 
-    :material-plus: [kernel_tx](#kernel_tx)
-    :material-plus: [kernel_rx](#kernel_rx)
-    :material-plus: [curve_preferences](#curve_preferences)
-    :material-plus: [certificate_public_key_sha256](#certificate_public_key_sha256)
-    :material-plus: [client_certificate](#client_certificate)
-    :material-plus: [client_certificate_path](#client_certificate_path)
-    :material-plus: [client_key](#client_key)
-    :material-plus: [client_key_path](#client_key_path)
-    :material-plus: [client_authentication](#client_authentication)
-    :material-plus: [client_certificate_public_key_sha256](#client_certificate_public_key_sha256)
+    :material-plus: [kernel_tx](#kernel_tx)  
+    :material-plus: [kernel_rx](#kernel_rx)  
+    :material-plus: [curve_preferences](#curve_preferences)  
+    :material-plus: [certificate_public_key_sha256](#certificate_public_key_sha256)  
+    :material-plus: [client_certificate](#client_certificate)  
+    :material-plus: [client_certificate_path](#client_certificate_path)  
+    :material-plus: [client_key](#client_key)  
+    :material-plus: [client_key_path](#client_key_path)  
+    :material-plus: [client_authentication](#client_authentication)  
+    :material-plus: [client_certificate_public_key_sha256](#client_certificate_public_key_sha256)  
+    :material-plus: [ech.query_server_name](#query_server_name)
 
 !!! quote "sing-box 1.12.0 中的更改"
 
-    :material-plus: [fragment](#fragment)
-    :material-plus: [fragment_fallback_delay](#fragment_fallback_delay)
-    :material-plus: [record_fragment](#record_fragment)
-    :material-delete-clock: [ech.pq_signature_schemes_enabled](#pq_signature_schemes_enabled)
+    :material-plus: [fragment](#fragment)  
+    :material-plus: [fragment_fallback_delay](#fragment_fallback_delay)  
+    :material-plus: [record_fragment](#record_fragment)  
+    :material-delete-clock: [ech.pq_signature_schemes_enabled](#pq_signature_schemes_enabled)  
     :material-delete-clock: [ech.dynamic_record_sizing_disabled](#dynamic_record_sizing_disabled)
 
 !!! quote "sing-box 1.10.0 中的更改"
 
-    :material-alert-decagram: [utls](#utls)  
+    :material-alert-decagram: [utls](#utls)
 
 ### 入站
 
@@ -118,6 +119,7 @@ icon: material/new-box
     "enabled": false,
     "config": [],
     "config_path": "",
+    "query_server_name": "",
 
     // 废弃的
     "pq_signature_schemes_enabled": false,
@@ -415,9 +417,16 @@ echo | openssl s_client -servername example.com -connect example.com:443 2>/dev/
 
 ==仅客户端==
 
-!!! failure ""
+!!! failure "不推荐"
 
-    没有证据表明 GFW 根据 TLS 客户端指纹检测并阻止服务器，并且，使用一个未经安全审查的不完美模拟可能带来安全隐患。
+    uTLS 已被研究人员多次发现其指纹可被识别的漏洞。
+
+    uTLS 是一个试图通过复制 ClientHello 结构来模仿浏览器 TLS 指纹的 Go 库。
+    然而，浏览器使用完全不同的 TLS 实现（Chrome 使用 BoringSSL，Firefox 使用 NSS），
+    其实现行为无法通过简单复制握手格式来复现，其行为细节必然存在差异，使得检测成为可能。
+    此外，此库缺乏积极维护，且代码质量较差，不建议用于反审查场景。
+
+    如需 TLS 指纹抵抗，请改用 [NaiveProxy](/configuration/inbound/naive/)。
 
 uTLS 是 "crypto/tls" 的一个分支，它提供了 ClientHello 指纹识别阻力。
 
@@ -502,6 +511,16 @@ ECH 配置行数组，PEM 格式。
 ECH 配置路径，PEM 格式。
 
 如果为空，将尝试从 DNS 加载。
+
+#### query_server_name
+
+!!! question "自 sing-box 1.13.0 起"
+
+==仅客户端==
+
+覆盖用于 ECH HTTPS 记录查询的域名。
+
+如果为空，使用 `server_name` 查询。
 
 #### fragment
 
@@ -608,7 +627,7 @@ MAC 密钥。
 
 ACME DNS01 验证字段。如果配置，将禁用其他验证方法。
 
-参阅 [DNS01 验证字段](/configuration/shared/dns01_challenge/)。
+参阅 [DNS01 验证字段](/zh/configuration/shared/dns01_challenge/)。
 
 ### Reality 字段
 
