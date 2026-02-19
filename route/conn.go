@@ -229,35 +229,6 @@ func (m *ConnectionManager) NewPacketConnection(ctx context.Context, this N.Dial
 	go m.packetConnectionCopy(ctx, destination, conn, true, &done, onClose)
 }
 
-func (m *ConnectionManager) preConnectionCopy(ctx context.Context, source net.Conn, destination net.Conn, direction bool, done *atomic.Bool, onClose N.CloseHandlerFunc) {
-	readHandshake := N.NeedHandshakeForRead(source)
-	writeHandshake := N.NeedHandshakeForWrite(destination)
-	if readHandshake || writeHandshake {
-		var err error
-		for {
-			err = m.connectionCopyEarlyWrite(source, destination, readHandshake, writeHandshake)
-			if err == nil && N.NeedHandshakeForRead(source) {
-				continue
-			} else if E.IsMulti(err, os.ErrInvalid, context.DeadlineExceeded, io.EOF) {
-				err = nil
-			}
-			break
-		}
-		if err != nil {
-			if done.Swap(true) {
-				onClose(err)
-			}
-			common.Close(source, destination)
-			if !direction {
-				m.logger.ErrorContext(ctx, "connection upload handshake: ", err)
-			} else {
-				m.logger.ErrorContext(ctx, "connection download handshake: ", err)
-			}
-			return
-		}
-	}
-}
-
 func (m *ConnectionManager) connectionCopy(ctx context.Context, source net.Conn, destination net.Conn, direction bool, done *atomic.Bool, onClose N.CloseHandlerFunc) {
 	_, err := bufio.CopyWithIncreateBuffer(destination, source, bufio.DefaultIncreaseBufferAfter, bufio.DefaultBatchSize)
 	if err != nil {
