@@ -2,9 +2,43 @@
 icon: material/alert-decagram
 ---
 
-#### 1.13.0-rc.5
+#### 1.13.3-beta.1
+
+* Add OpenWrt and Alpine APK packages to release **1**
+* Backport to macOS 10.13 High Sierra **2**
+* OCM service: Add WebSocket support for Responses API **3**
+* Fixes and improvements
+
+**1**:
+
+Alpine APK files use `linux` in the filename to distinguish from OpenWrt APKs which use the `openwrt` prefix:
+
+- OpenWrt: `sing-box_{version}_openwrt_{architecture}.apk`
+- Alpine: `sing-box_{version}_linux_{architecture}.apk`
+
+**2**:
+
+Legacy macOS binaries (with `-legacy-macos-10.13` suffix) now support
+macOS 10.13 High Sierra, built using Go 1.25 with patches
+from [SagerNet/go](https://github.com/SagerNet/go).
+
+**3**:
+
+See [OCM](/configuration/service/ocm).
+
+#### 1.13.2
 
 * Fixes and improvements
+
+#### 1.13.1
+
+* Fixes and improvements
+
+#### 1.12.14
+
+* Backport fixes
+
+#### 1.13.0
 
 Important changes since 1.12:
 
@@ -22,7 +56,7 @@ Important changes since 1.12:
 * Improve `local` DNS server **12**
 * Add `disable_tcp_keep_alive`, `tcp_keep_alive` and `tcp_keep_alive_interval` options for listen and dial fields **13**
 * Add `bind_address_no_port` option for dial fields **14**
-* Add system interface and relay server options for Tailscale endpoint **15**
+* Add system interface, relay server and advertise tags options for Tailscale endpoint **15**
 * Add Claude Code Multiplexer service **16**
 * Add OpenAI Codex Multiplexer service **17**
 * Apple/Android: Refactor GUI
@@ -136,6 +170,7 @@ See [Dial Fields](/configuration/shared/dial/#bind_address_no_port).
 
 Tailscale endpoint can now create a system TUN interface to handle traffic directly.
 New `relay_server_port` and `relay_server_static_endpoints` options for incoming relay connections.
+New `advertise_tags` option for ACL tag advertisement.
 
 See [Tailscale endpoint](/configuration/endpoint/tailscale/).
 
@@ -168,6 +203,14 @@ This update fixes missing padding extension for Chrome 120+ fingerprints.
 Also, documentation has been updated with a warning about uTLS fingerprinting vulnerabilities.
 uTLS is not recommended for censorship circumvention due to fundamental architectural limitations;
 use NaiveProxy instead for TLS fingerprint resistance.
+
+#### 1.12.23
+
+* Fixes and improvements
+
+#### 1.13.0-rc.5
+
+* Add `mipsle`, `mips64le`, `riscv64` and `loong64` support for NaiveProxy outbound
 
 #### 1.12.22
 

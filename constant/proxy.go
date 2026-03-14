@@ -31,6 +31,7 @@ const (
 	TypeSSMAPI       = "ssm-api"
 	TypeCCM          = "ccm"
 	TypeOCM          = "ocm"
+	TypeOOMKiller    = "oom-killer"
 )
 
 const (
@@ -88,6 +89,8 @@ func ProxyDisplayName(proxyType string) string {
 		return "AnyTLS"
 	case TypeMieru:
 		return "Mieru"
+	case TypeTailscale:
+		return "Tailscale"
 	case TypeSelector:
 		return "Selector"
 	case TypeURLTest:
