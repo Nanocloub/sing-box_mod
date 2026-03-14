@@ -27,6 +27,7 @@ import (
 	mieruconstant "github.com/enfein/mieru/v3/apis/constant"
 	mierumodel "github.com/enfein/mieru/v3/apis/model"
 	mieruserver "github.com/enfein/mieru/v3/apis/server"
+	mierutp "github.com/enfein/mieru/v3/apis/trafficpattern"
 	mierupb "github.com/enfein/mieru/v3/pkg/appctl/appctlpb"
 	mieruprotocol "github.com/enfein/mieru/v3/pkg/protocol"
 )
@@ -183,8 +184,7 @@ func (h *Inbound) handleConnection(conn net.Conn, request *mierumodel.Request) {
 	metadata.InboundType = h.Type()
 	//nolint:staticcheck
 	metadata.InboundDetour = h.listener.ListenOptions().Detour
-	//nolint:staticcheck
-	metadata.InboundOptions = h.listener.ListenOptions().InboundOptions
+	metadata.UDPDisableDomainUnmapping = h.listener.ListenOptions().UDPDisableDomainUnmapping
 
 	// Parse source address.
 	if remoteAddr := conn.RemoteAddr(); remoteAddr != nil {
@@ -353,11 +353,13 @@ func buildMieruServerConfig(_ context.Context, options option.MieruInboundOption
 		})
 		userNames = append(userNames, user.Name)
 	}
-
+	var trafficPattern *mierupb.TrafficPattern
+	trafficPattern, _ = mierutp.Decode(options.TrafficPattern)
 	return &mieruserver.ServerConfig{
 		Config: &mierupb.ServerConfig{
-			PortBindings: portBindings,
-			Users:        users,
+			PortBindings:   portBindings,
+			Users:          users,
+			TrafficPattern: trafficPattern,
 		},
 	}, userNames, nil
 }
@@ -375,6 +377,15 @@ func validateMieruInboundOptions(options option.MieruInboundOptions) error {
 		}
 		if user.Password == "" {
 			return E.New("password is empty")
+		}
+	}
+	if options.TrafficPattern != "" {
+		trafficPattern, err := mierutp.Decode(options.TrafficPattern)
+		if err != nil {
+			return fmt.Errorf("failed to decode traffic pattern %q: %w", options.TrafficPattern, err)
+		}
+		if err := mierutp.Validate(trafficPattern); err != nil {
+			return fmt.Errorf("invalid traffic pattern %q: %w", options.TrafficPattern, err)
 		}
 	}
 	return nil

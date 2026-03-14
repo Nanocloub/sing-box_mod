@@ -20,6 +20,7 @@ import (
 	mieruclient "github.com/enfein/mieru/v3/apis/client"
 	mierucommon "github.com/enfein/mieru/v3/apis/common"
 	mierumodel "github.com/enfein/mieru/v3/apis/model"
+	mierutp "github.com/enfein/mieru/v3/apis/trafficpattern"
 	mierupb "github.com/enfein/mieru/v3/pkg/appctl/appctlpb"
 	"google.golang.org/protobuf/proto"
 )
@@ -214,6 +215,10 @@ func buildMieruClientConfig(options option.MieruOutboundOptions, dialer mieruDia
 			Level: mierupb.MultiplexingLevel(multiplexing).Enum(),
 		}
 	}
+	if options.TrafficPattern != "" {
+		trafficPattern, _ := mierutp.Decode(options.TrafficPattern)
+		config.Profile.TrafficPattern = trafficPattern
+	}
 	return config, nil
 }
 
@@ -251,6 +256,15 @@ func validateMieruOptions(options option.MieruOutboundOptions) error {
 	if options.Multiplexing != "" {
 		if _, ok := mierupb.MultiplexingLevel_value[options.Multiplexing]; !ok {
 			return fmt.Errorf("invalid multiplexing level: %s", options.Multiplexing)
+		}
+	}
+	if options.TrafficPattern != "" {
+		trafficPattern, err := mierutp.Decode(options.TrafficPattern)
+		if err != nil {
+			return fmt.Errorf("failed to decode traffic pattern %q: %w", options.TrafficPattern, err)
+		}
+		if err := mierutp.Validate(trafficPattern); err != nil {
+			return fmt.Errorf("invalid traffic pattern %q: %w", options.TrafficPattern, err)
 		}
 	}
 	return nil
