@@ -190,7 +190,7 @@ func NewEndpoint(ctx context.Context, router adapter.Router, logger log.ContextL
 		if err != nil {
 			return nil, E.Cause(err, "parse control URL")
 		}
-		remoteIsDomain = M.IsDomainName(controlURL.Hostname())
+		remoteIsDomain = M.ParseSocksaddr(controlURL.Hostname()).IsDomain()
 	} else {
 		// controlplane.tailscale.com
 		remoteIsDomain = true
@@ -262,9 +262,16 @@ func NewEndpoint(ctx context.Context, router adapter.Router, logger log.ContextL
 }
 
 func (t *Endpoint) Start(stage adapter.StartStage) error {
-	if stage != adapter.StartStateStart {
-		return nil
+	switch stage {
+	case adapter.StartStateStart:
+		return t.start()
+	case adapter.StartStatePostStart:
+		return t.postStart()
 	}
+	return nil
+}
+
+func (t *Endpoint) start() error {
 	if t.platformInterface != nil {
 		err := t.network.UpdateInterfaces()
 		if err != nil {
@@ -347,6 +354,10 @@ func (t *Endpoint) Start(stage adapter.StartStage) error {
 			})
 		})
 	}
+	return nil
+}
+
+func (t *Endpoint) postStart() error {
 	err := t.server.Start()
 	if err != nil {
 		if t.systemTun != nil {
@@ -471,13 +482,13 @@ func (t *Endpoint) watchState() {
 }
 
 func (t *Endpoint) Close() error {
+	err := common.Close(common.PtrOrNil(t.server))
 	netmon.RegisterInterfaceGetter(nil)
 	netns.SetControlFunc(nil)
 	if t.fallbackTCPCloser != nil {
 		t.fallbackTCPCloser()
 		t.fallbackTCPCloser = nil
 	}
-	err := common.Close(common.PtrOrNil(t.server))
 	if t.systemTun != nil {
 		t.systemTun.Close()
 		t.systemTun = nil
@@ -492,7 +503,7 @@ func (t *Endpoint) DialContext(ctx context.Context, network string, destination 
 	case N.NetworkUDP:
 		t.logger.InfoContext(ctx, "outbound packet connection to ", destination)
 	}
-	if destination.IsFqdn() {
+	if destination.IsDomain() {
 		destinationAddresses, err := t.dnsRouter.Lookup(ctx, destination.Fqdn, adapter.DNSQueryOptions{})
 		if err != nil {
 			return nil, err
@@ -578,7 +589,7 @@ func (t *Endpoint) listenPacketWithAddress(ctx context.Context, destination M.So
 
 func (t *Endpoint) ListenPacketWithDestination(ctx context.Context, destination M.Socksaddr) (net.PacketConn, netip.Addr, error) {
 	t.logger.InfoContext(ctx, "outbound packet connection to ", destination)
-	if destination.IsFqdn() {
+	if destination.IsDomain() {
 		destinationAddresses, err := t.dnsRouter.Lookup(ctx, destination.Fqdn, adapter.DNSQueryOptions{})
 		if err != nil {
 			return nil, netip.Addr{}, err
@@ -847,4 +858,3 @@ func (c *dnsConfigurtor) GetBaseConfig() (tsDNS.OSConfig, error) {
 func (c *dnsConfigurtor) Close() error {
 	return nil
 }
-
