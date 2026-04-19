@@ -22,6 +22,7 @@ import (
 	E "github.com/sagernet/sing/common/exceptions"
 	M "github.com/sagernet/sing/common/metadata"
 	N "github.com/sagernet/sing/common/network"
+	"google.golang.org/protobuf/proto"
 
 	mierucommon "github.com/enfein/mieru/v3/apis/common"
 	mieruconstant "github.com/enfein/mieru/v3/apis/constant"
@@ -355,11 +356,18 @@ func buildMieruServerConfig(_ context.Context, options option.MieruInboundOption
 	}
 	var trafficPattern *mierupb.TrafficPattern
 	trafficPattern, _ = mierutp.Decode(options.TrafficPattern)
+	var advancedSettings *mierupb.ServerAdvancedSettings
+	if options.UserHintIsMandatory {
+		advancedSettings = &mierupb.ServerAdvancedSettings{
+			UserHintIsMandatory: proto.Bool(true),
+		}
+	}
 	return &mieruserver.ServerConfig{
 		Config: &mierupb.ServerConfig{
-			PortBindings:   portBindings,
-			Users:          users,
-			TrafficPattern: trafficPattern,
+			PortBindings:     portBindings,
+			Users:            users,
+			TrafficPattern:   trafficPattern,
+			AdvancedSettings: advancedSettings,
 		},
 	}, userNames, nil
 }

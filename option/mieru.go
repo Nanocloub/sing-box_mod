@@ -15,9 +15,10 @@ type MieruOutboundOptions struct {
 
 type MieruInboundOptions struct {
 	ListenOptions
-	Users          []MieruUser `json:"users,omitempty"`
-	Transport      string      `json:"transport,omitempty"`
-	TrafficPattern string      `json:"traffic_pattern,omitempty"`
+	Users               []MieruUser `json:"users,omitempty"`
+	Transport           string      `json:"transport,omitempty"`
+	TrafficPattern      string      `json:"traffic_pattern,omitempty"`
+	UserHintIsMandatory bool        `json:"user_hint_is_mandatory,omitempty"`
 }
 
 type MieruUser struct {
