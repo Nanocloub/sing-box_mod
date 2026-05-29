@@ -2,12 +2,14 @@ package mieru
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/netip"
 	"reflect"
 	"sync"
+	"time"
 	"unsafe"
 
 	"github.com/sagernet/sing-box/adapter"
@@ -155,7 +157,15 @@ func (h *Inbound) acceptLoop() {
 			if !h.server.IsRunning() {
 				return
 			}
+
+			// Treat closed/canceled errors as normal shutdown.
+			if E.IsClosedOrCanceled(err) || errors.Is(err, io.ErrClosedPipe) || errors.Is(err, net.ErrClosed) {
+				return
+			}
+
+			// Unexpected errors: log at debug level and back off to avoid busy-loop.
 			h.logger.Debug("failed to accept mieru connection: ", err)
+			time.Sleep(200 * time.Millisecond)
 			continue
 		}
 		go h.handleConnection(conn, request)
