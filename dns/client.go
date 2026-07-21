@@ -41,9 +41,9 @@ type Client struct {
 	initRDRCFunc       func() adapter.RDRCStore
 	logger             logger.ContextLogger
 	cache              freelru.Cache[dns.Question, *dns.Msg]
-	cacheLock          compatible.Map[dns.Question, chan struct{}]
+	cacheLock          compatible.Map[transportCacheKey, chan struct{}]
 	transportCache     freelru.Cache[transportCacheKey, *dns.Msg]
-	transportCacheLock compatible.Map[dns.Question, chan struct{}]
+	transportCacheLock compatible.Map[transportCacheKey, chan struct{}]
 }
 
 type ClientOptions struct {
@@ -70,10 +70,7 @@ func NewClient(options ClientOptions) *Client {
 	if client.timeout == 0 {
 		client.timeout = C.DNSTimeout
 	}
-	cacheCapacity := options.CacheCapacity
-	if cacheCapacity < 1024 {
-		cacheCapacity = 1024
-	}
+	cacheCapacity := max(options.CacheCapacity, 1024)
 	if !client.disableCache {
 		if !client.independentCache {
 			client.cache = common.Must1(freelru.NewSharded[dns.Question, *dns.Msg](cacheCapacity, maphash.NewHasher[dns.Question]().Hash32))
@@ -141,8 +138,9 @@ func (c *Client) Exchange(ctx context.Context, transport adapter.DNSTransport, m
 		!options.ClientSubnet.IsValid()
 	disableCache := !isSimpleRequest || c.disableCache || options.DisableCache
 	if !disableCache {
+		cacheKey := transportCacheKey{Question: question, transportTag: transport.Tag()}
 		if c.cache != nil {
-			cond, loaded := c.cacheLock.LoadOrStore(question, make(chan struct{}))
+			cond, loaded := c.cacheLock.LoadOrStore(cacheKey, make(chan struct{}))
 			if loaded {
 				select {
 				case <-cond:
@@ -151,12 +149,12 @@ func (c *Client) Exchange(ctx context.Context, transport adapter.DNSTransport, m
 				}
 			} else {
 				defer func() {
-					c.cacheLock.Delete(question)
+					c.cacheLock.Delete(cacheKey)
 					close(cond)
 				}()
 			}
 		} else if c.transportCache != nil {
-			cond, loaded := c.transportCacheLock.LoadOrStore(question, make(chan struct{}))
+			cond, loaded := c.transportCacheLock.LoadOrStore(cacheKey, make(chan struct{}))
 			if loaded {
 				select {
 				case <-cond:
@@ -165,7 +163,7 @@ func (c *Client) Exchange(ctx context.Context, transport adapter.DNSTransport, m
 				}
 			} else {
 				defer func() {
-					c.transportCacheLock.Delete(question)
+					c.transportCacheLock.Delete(cacheKey)
 					close(cond)
 				}()
 			}
@@ -334,9 +332,10 @@ func (c *Client) Lookup(ctx context.Context, transport adapter.DNSTransport, dom
 	if options.LookupStrategy != C.DomainStrategyAsIS {
 		lookupOptions.Strategy = strategy
 	}
-	if strategy == C.DomainStrategyIPv4Only {
+	switch strategy {
+	case C.DomainStrategyIPv4Only:
 		return c.lookupToExchange(ctx, transport, dnsName, dns.TypeA, lookupOptions, responseChecker)
-	} else if strategy == C.DomainStrategyIPv6Only {
+	case C.DomainStrategyIPv6Only:
 		return c.lookupToExchange(ctx, transport, dnsName, dns.TypeAAAA, lookupOptions, responseChecker)
 	}
 	var response4 []netip.Addr
@@ -500,10 +499,7 @@ func (c *Client) loadResponse(question dns.Question, transport adapter.DNSTransp
 				}
 			}
 		}
-		nowTTL := int(expireAt.Sub(timeNow).Seconds())
-		if nowTTL < 0 {
-			nowTTL = 0
-		}
+		nowTTL := max(int(expireAt.Sub(timeNow).Seconds()), 0)
 		response = response.Copy()
 		if originTTL > 0 {
 			duration := uint32(originTTL - nowTTL)
@@ -549,18 +545,6 @@ func MessageToAddresses(response *dns.Msg) []netip.Addr {
 		}
 	}
 	return addresses
-}
-
-func wrapError(err error) error {
-	switch dnsErr := err.(type) {
-	case *net.DNSError:
-		if dnsErr.IsNotFound {
-			return RcodeNameError
-		}
-	case *net.AddrError:
-		return RcodeNameError
-	}
-	return err
 }
 
 type transportKey struct{}
